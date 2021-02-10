@@ -2,7 +2,7 @@ import pandas as pd
 import wfdb
 from wfdb import processing
 import numpy as np
-import tensorflow as tf
+
 
 
 DATA_DIR = 'data/lobachevsky-university-electrocardiography-database-1.0.1'
@@ -17,6 +17,7 @@ data_10_to_21 = df.loc[(16 < df['Age']) & (df['Age'] < 21)]
 DIAGNOSES = np.unique(df['Rhythms'])
 print('Count of DIAGNOSES:', len(DIAGNOSES))
 
+df['diagnose_class'] = df.apply['Rhythms'](lambda x: get_class_of_diagnose(x), axis=1)
 
 def get_class_of_diagnose(diagnose):
     global DIAGNOSES
@@ -44,32 +45,24 @@ def calculate_heart_rate(fs, r_peaks=None, diff=None):
 
 def feature_selection(signal, fs, r_peaks_ix):
     RR_middle = np.mean(fs / r_peaks_ix)
-    HR = calculate_heart_rate(fields['fs'], r_peaks=r_peaks_ix)
+    HR = calculate_heart_rate(fs, r_peaks=r_peaks_ix)
     return {'RPM': RR_middle, 'HR': HR}
 
+
+def process_data(df):
+    df['data'] = df.apply(lambda row: get_data_for_patient(row['ID']), axis=1)
+    return df
+
+
+def get_data_for_patient(patient):
+    signal, fields = wfdb.rdsamp(f'{DATA_DIR}/data/{patient}')
+    fs = fields['fs']
+    r_peaks_ix = processing.gqrs_detect(signal[:, 0], fs=fs, threshold=1.0)
+
+    features = feature_selection(signal, fs, r_peaks_ix)
+    return features
+
+
 def main():
-    for i in range(0, len(data_10_to_21)):
-        fid = data_10_to_21.iloc[i]['ID']
-
-        signal, fields = wfdb.rdsamp(f'{DATA_DIR}/data/{fid}')
-        fs = fields['fs']
-        r_peaks_ix = processing.gqrs_detect(signal[:, 0], fs=fs, threshold=1.0)
-
-        print(feature_selection(signal, fs, r_peaks_ix), get_class_of_diagnose(fields['comments'][3]))
-
-        # # Проходимся по данным между пиками R
-        # for i in range(0, len(r_peaks_ix), 2):
-        #     data = signal[r_peaks_ix[i]:r_peaks_ix[i+1]]
-        #     data = data.T[0]
-        #     print(len(data))
-        #
-        #     # print("xa, ya = {}, {}".format(maximums[0].tolist(), data[maximums].tolist()), end='\n\n')
-        #     break
-        # break
-#
-#
-# model = tf.keras.models.Sequential([
-#   tf.keras.layers.Flatten(input_shape=(2,)),
-#   tf.keras.layers.Dense(10, activation='relu'),
-#   tf.keras.layers.Dense(10)
-# ])
+    # Получаем data для целевых данных
+    data_10_to_21 = process_data(data_10_to_21)
